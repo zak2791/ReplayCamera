@@ -148,12 +148,12 @@ public class MainActivity extends AppCompatActivity {
     TcpClient mTcpClient;
     SoundThread soundThread = null;
 
-    AudioServer audioServer = null;
+    //AudioServer audioServer = null;
     final String CAMERA_NUMBER = "cameraNumber";
     final String CURRENT_FPS = "currentFps";
     final String CURRENT_WIDTH = "currentWidth";
     final String CURRENT_HEIGHT = "currentHeight";
-    Handler handler;
+    public Handler handler;
     SurfaceTexture st;
     Surface s;
 
@@ -187,18 +187,6 @@ public class MainActivity extends AppCompatActivity {
             mBackgroundHandler = null;
         } catch (InterruptedException e) {
             e.printStackTrace();
-        }
-    }
-
-    private long getTime(){
-        if(prevTime != 0){
-            long temp = prevTime;
-            prevTime = System.nanoTime();
-            currTime += prevTime - temp;
-            return currTime;
-        }else{
-            prevTime = System.nanoTime();
-            return 0;
         }
     }
 
@@ -293,7 +281,22 @@ public class MainActivity extends AppCompatActivity {
                 portAudio = 5572;
                 portConnection = 5573;
             }
-            connectionServer = new ConnectionServer(portConnection);
+
+            handler = new Handler(Looper.getMainLooper()) {
+                public void handleMessage(@NonNull android.os.Message msg) {
+                    if(msg.what == 1) {
+                        if(stateButtonPlay == STATE_PLAY) {
+                            btnPlay.callOnClick();
+                        }
+                    }else if(msg.what == 2){
+                        if(stateButtonPlay == STATE_PAUSE) {
+                            btnPlay.callOnClick();
+                        }
+                    }
+                }
+            };
+
+            connectionServer = new ConnectionServer(portConnection, handler, currentFps, currentResolution);
             connectionServer.start();
 
             btnCamera1 = findViewById(R.id.btnCamera1);
@@ -552,19 +555,19 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        handler = new Handler(Looper.getMainLooper()) {
-            public void handleMessage(@NonNull android.os.Message msg) {
-                if(msg.what == 1) {
-                    if(stateButtonPlay == STATE_PLAY) {
-                        btnPlay.callOnClick();
-                    }
-                }else if(msg.what == 2){
-                    if(stateButtonPlay == STATE_PAUSE) {
-                        btnPlay.callOnClick();
-                    }
-                }
-            }
-        };
+//        handler = new Handler(Looper.getMainLooper()) {
+//            public void handleMessage(@NonNull android.os.Message msg) {
+//                if(msg.what == 1) {
+//                    if(stateButtonPlay == STATE_PLAY) {
+//                        btnPlay.callOnClick();
+//                    }
+//                }else if(msg.what == 2){
+//                    if(stateButtonPlay == STATE_PAUSE) {
+//                        btnPlay.callOnClick();
+//                    }
+//                }
+//            }
+//        };
     }
 
     public void select_camera(View view) {
@@ -597,7 +600,7 @@ public class MainActivity extends AppCompatActivity {
             portAudio = 5572;
             portConnection = 5573;
         }
-        connectionServer = new ConnectionServer(portConnection);
+        connectionServer = new ConnectionServer(portConnection, handler, currentFps, currentResolution);
         connectionServer.start();
         SharedPreferences sPref = getSharedPreferences("camera_settings", MODE_PRIVATE);
         SharedPreferences.Editor ed = sPref.edit();
@@ -1003,33 +1006,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public class ConnectTask extends AsyncTask<String, String, TcpClient> {
-
-        @Override
-        protected TcpClient doInBackground(String... message) {
-
-            //we create a TCPClient object
-            mTcpClient = new TcpClient(new TcpClient.OnMessageReceived() {
-                @Override
-                //here the messageReceived method is implemented
-                public void messageReceived(String message) {
-                    //this method calls the onProgressUpdate
-                    publishProgress(message);
-                }
-            });
-            mTcpClient.run();
-            return null;
-        }
-        @Override
-        protected void onProgressUpdate(String... values) {
-            super.onProgressUpdate(values);
-            //response received from server
-            Log.d("test", "response " + values[0]);
-            //process server response here....
-
-        }
-    }
-
     private class SoundThread extends Thread{
         AudioRecord audioRecord;
         int BUFFER_SIZE;
@@ -1149,30 +1125,16 @@ public class MainActivity extends AppCompatActivity {
                             bTimestamp.get(aacData, 4, 8);
                             bSize.get(aacData, 12, 4);
 
-                            //outPutByteBuffer.get(aacData, 8, info.size);
-
                             outBuf.get(aacData, 16, info.size);
-
-                            //long startTime = System.nanoTime(); // выполнение кода
-                            //long endTime = System.nanoTime();
-
-
-
-//                            ptsAudio = info.presentationTimeUs - ptsAudio;
-//                            Log.i("fff", "ptsAudio = " + " " + ptsAudio);
-//                            Log.i("fff", "info.presentationTimeU = " + " " + info.presentationTimeUs);
 
                             Log.i("fff", "timeAudio = " + " " + info.presentationTimeUs + " sumA = " + sumA + " countA = " + ++countA);
 
-                            // Write to file/stream (ADTS header if necessary)
                             if(socketAudio != null) {
                                 if (socketAudio.isConnected()) {
                                     try {
                                         Log.i("fff", String.valueOf(aacData.length));
                                         outputAudio.write(aacData);
                                         outputAudio.flush();
-//                                output.write(aacData);
-//                                output.flush();
                                     } catch (IOException e) {
                                         //throw new RuntimeException(e);
                                         Log.i("fff", "err sound");
@@ -1186,15 +1148,6 @@ public class MainActivity extends AppCompatActivity {
                         }
                     } while (outputIndex >= 0);
                     /// ///////////////////////////////////////////////////////////////////////////
-//                    if(socketAudio != null) {
-//                        try {
-//                            outputAudio.write(buffer);
-//                            outputAudio.flush();
-//                            Log.i("outputAudio", "outputAudio " + buffer.length);
-//                        } catch (IOException e) {
-//                            Log.i("outputAudio", "outputAudio error " + e.getMessage());
-//                        }
-//                    }
                 }else if(out == ERROR_INVALID_OPERATION){
                     Log.e(LOG_TAG, " ERROR_INVALID_OPERATION ");
                 }else if(out == ERROR_BAD_VALUE){
@@ -1211,116 +1164,6 @@ public class MainActivity extends AppCompatActivity {
             //encoder.close();
             Log.i(LOG_TAG, "exit sound");
         }
-    }
-
-    private class AudioServer extends Thread {
-
-        ServerSocket serverSocket;
-        private Socket clientSocket; //сокет для общения
-        byte[] buf = new byte[7];
-        //private boolean isClosed = false;
-        private boolean process = true;
-        BufferedInputStream in;
-        int countNoData = 0;
-        BufferedOutputStream out = null;
-        boolean isData = false;
-        byte[] data = null;
-        int port;
-
-        AudioServer(int _port){
-            port = _port;
-        }
-        public void sendData(ByteBuffer buffer){
-            //Log.e(LOG_TAG, "sendData();   " );
-            data = new byte[buffer.limit()];
-            buffer.get(data);
-            isData = true;
-        }
-        public void stopProcess(){
-
-            process = false;
-            Log.d(LOG_TAG, "stopProcess 1 ");
-            try {
-                if(out != null) {
-                    out.close();
-                    out = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "error out.close()   " + e.getMessage());
-            }
-            Log.d(LOG_TAG, "stopProcess 2 ");
-            try {
-                if(clientSocket != null) {
-                    clientSocket.close();
-                    clientSocket = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "error clientSocket.close()   " + e.getMessage());
-            }
-            Log.d(LOG_TAG, "stopProcess 3 ");
-            if(serverSocket != null) {
-                try {
-                    serverSocket.close();
-                    Log.e(LOG_TAG, "audio server stop   " );
-                } catch (Exception e) {
-                    Log.e(LOG_TAG, "error audio serverSocket.close()  " + e.getMessage());
-                }
-            }
-            Log.d(LOG_TAG, "stopProcess 4 ");
-        }
-        @Override
-        public void run() {
-            try {
-                //Log.i(LOG_TAG, "audio server create ");
-                serverSocket = new ServerSocket();
-                //serverSocket.setReuseAddress(true);
-                //serverSocket.setSoTimeout(10);
-                serverSocket.bind(new InetSocketAddress("127.0.0.1", port), 10);
-                Log.i(LOG_TAG, "audio server bind ");
-            }catch(IOException e) {
-                Log.e(LOG_TAG, "audio server error create bind " + e.getMessage());
-                return;
-            }
-//            }catch (SocketTimeoutException e){
-//                Log.e(LOG_TAG, "audio SocketTimeoutException " + e.getMessage());
-//            }
-            while(process) {
-                try {
-                    //Log.i(LOG_TAG, "start accept videoServer ");
-                    clientSocket = serverSocket.accept();
-                    //clientSocket.setSoTimeout(10);
-                    Log.i(LOG_TAG, "accept audio server ");
-                    //in = new BufferedInputStream(clientSocket.getInputStream());
-                    out = new BufferedOutputStream(clientSocket.getOutputStream());
-
-                }catch(IOException e) {
-                    Log.e(LOG_TAG, "audio server accept error " + e.getMessage());
-                }
-                //Log.i(LOG_TAG, "SocketServerThread accept ");
-
-
-                while (process) {
-                    if(isData){
-                        try {
-                            if(out != null) {
-                                out.write(data);
-                                out.flush();
-                            }
-                            //Log.i(LOG_TAG, "send audio data " + data.length);
-                        } catch (IOException e) {
-                            Log.e(LOG_TAG, "error send audio data " + e.getMessage());
-                            //handler.sendEmptyMessage(1);
-                        }finally {
-                            data = null;
-                            isData = false;
-                        }
-                    }
-                }
-
-            }
-            Log.i(LOG_TAG, "audio server exit ");
-        }
-
     }
 
     private class ConnectionCommonServer extends Thread {
@@ -1404,153 +1247,6 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
-    private class ConnectionServer extends Thread {
-        ServerSocket serverSocket;
-        private Socket clientSocket; //сокет для общения
-        private boolean process = true;
-        BufferedOutputStream out = null;
-        BufferedInputStream in = null;
-        boolean isData = false;
-        byte[] data = null;
-        int port;
-        ConnectionServer(int _port){
-            port = _port;
-        }
-        public void stopProcess(){
-            process = false;
-            Log.d(LOG_TAG, "stopProcess 1 " + port);
-            try {
-                if(out != null) {
-                    out.close();
-                    out = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "error out.close()   " + e.getMessage() + port);
-            }
-            Log.d(LOG_TAG, "stopProcess 2 " + port);
-            try {
-                if(clientSocket != null) {
-                    clientSocket.close();
-                    clientSocket = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "error clientSocket.close()   " + e.getMessage() + port);
-            }
-            Log.d(LOG_TAG, "stopProcess 3 " + port);
-            if(serverSocket != null) {
-                try {
-                    serverSocket.close();
-                    Log.e(LOG_TAG, "audio server stop   "  + port);
-                } catch (Exception e) {
-                    Log.e(LOG_TAG, "error audio serverSocket.close()  " + e.getMessage() + port);
-                }
-            }
-            Log.d(LOG_TAG, "stopProcess 4 " + port);
-        }
-        @Override
-        public void run() {
-            try {
-                serverSocket = new ServerSocket();
-                serverSocket.bind(new InetSocketAddress("127.0.0.1", port), 10);
-                Log.i(LOG_TAG, "connection server bind " + port);
-
-            }catch(IOException e) {
-                Log.e(LOG_TAG, "connection server error bind " + e.getMessage() + port);
-                return;
-            }
-            while(process) {
-                try {
-                    //Log.i(LOG_TAG, "start accept videoServer ");
-                    clientSocket = serverSocket.accept();
-                    //clientSocket.setSoTimeout(5000);
-                    Log.i(LOG_TAG, "accept connect server " + port);
-                    in = new BufferedInputStream(clientSocket.getInputStream());
-                    out = new BufferedOutputStream(clientSocket.getOutputStream());
-                    //handler.sendEmptyMessage(2);    //включаем енкодер
-                }catch(IOException e) {
-                    Log.e(LOG_TAG, "connection server accept error " + e.getMessage() + port);
-                }
-                while(process) {
-                    Log.i(LOG_TAG, "process");
-                    byte[] b = new byte[10];
-                    int ret;
-                    try {
-//                        int av = in.available();
-//                        Log.i(LOG_TAG, "av = " + av);
-//                        if(av > 0)
-                        //while(in.available() < 1);
-                        Log.i(LOG_TAG, "in.available() = " + in.available());
-                        ret = in.read(b, 0, 10);
-
-                        Log.i(LOG_TAG, "ret = " + ret + Arrays.toString(b));
-                    } catch (IOException e) {
-                        Log.e(LOG_TAG, "read connection error " + e.getMessage());
-                        break;
-                    }
-//                    String sB = Arrays.toString(b);
-                    Log.i(LOG_TAG, "ret = " + b.toString());
-//                    if(ret != 10)
-//                        break;
-                    if(Arrays.equals(b, "parameters".getBytes())){
-                        Log.i(LOG_TAG, "Arrays.toString(b).equals(connect)");
-                        try {
-                            if(out != null) {
-                                String data = String.valueOf(currentResolution.getWidth()) + "=" +
-                                        String.valueOf(currentResolution.getHeight()) + "=" +
-                                        String.valueOf(currentFps);
-                                out.write(data.getBytes());
-                                out.flush();
-                                handler.sendEmptyMessage(2);    //включаем енкодер
-                            }
-                        } catch (IOException e) {
-                            Log.e(LOG_TAG, "error send conn data " + e.getMessage());
-                            break;
-                        }
-                    }
-                    else{
-                        try {
-                            if(out != null) {
-                                out.write("ok".getBytes());
-                                out.flush();
-                            }
-                        } catch (IOException e) {
-                            Log.e(LOG_TAG, "error send conn data " + e.getMessage());
-                            break;
-                        }
-                    }
-                }
-                handler.sendEmptyMessage(1);    //выключаем енкодер
-                try {
-                    if (in != null) {
-                        in.close();
-                    }
-                    if (out != null) {
-                        out.close();
-                    }
-                    clientSocket.close();
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, "error clientSocket.close() " + e.getMessage() + port);
-                }
-                Log.i(LOG_TAG, "connection read error " + port);
-            }
-            try {
-                if (in != null) {
-                    in.close();
-                }
-                if (out != null) {
-                    out.close();
-                }
-                clientSocket.close();
-                serverSocket.close();
-            } catch (IOException e) {
-                Log.e(LOG_TAG, "error clientSocket.close() " + e.getMessage() + port);
-            }
-            Log.i(LOG_TAG, "connection server exit " + port);
-        }
-
-    }
-
 
 
 }
