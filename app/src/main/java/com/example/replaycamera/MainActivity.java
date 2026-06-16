@@ -19,8 +19,7 @@ import androidx.core.view.WindowInsetsCompat;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.app.ActivityManager;
-import android.app.Application;
+
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -47,8 +46,6 @@ import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.media.MediaRecorder;
 
-import android.os.AsyncTask;
-
 import android.os.Build;
 import android.os.Bundle;
 
@@ -69,7 +66,6 @@ import android.view.WindowManager;
 
 import android.widget.ImageButton;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 
 import java.io.BufferedReader;
@@ -83,14 +79,12 @@ import java.io.OutputStreamWriter;
 
 import java.io.PrintWriter;
 
-import java.lang.reflect.Array;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
+
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -99,7 +93,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.concurrent.TimeoutException;
 
 public class MainActivity extends AppCompatActivity {
     public static final String LOG_TAG = "myLogs";
@@ -145,10 +138,9 @@ public class MainActivity extends AppCompatActivity {
     DatagramSocket udpSocket = null;
     InetAddress local;
 
-    TcpClient mTcpClient;
+    //TcpClient mTcpClient;
     SoundThread soundThread = null;
 
-    //AudioServer audioServer = null;
     final String CAMERA_NUMBER = "cameraNumber";
     final String CURRENT_FPS = "currentFps";
     final String CURRENT_WIDTH = "currentWidth";
@@ -189,7 +181,6 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
     }
-
     boolean isLandscape = false;
 
     @SuppressLint("NewApi")
@@ -220,15 +211,6 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-        st = new SurfaceTexture(true);
-
-        s = new Surface(st);
-        st.setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener(){
-            @Override
-            public void onFrameAvailable(SurfaceTexture surfaceTexture) {
-                Log.i(LOG_TAG, "onFrameAvailable");
-            }
-        });
 
         int orientation = getResources().getConfiguration().orientation;
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
@@ -259,7 +241,7 @@ public class MainActivity extends AppCompatActivity {
                 commonServer.stopProcess();
             }
 
-            commonServer = new ConnectionCommonServer(portCommonConnection);
+            commonServer = new ConnectionCommonServer(currentCamera, currentResolution, currentFps);
             commonServer.start();
 
             if(connectionServer != null){
@@ -455,16 +437,6 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
             });
-//            if(soundThread == null) {
-//                soundThread = new SoundThread();
-//                soundThread.start();
-//            }
-//            AudioEncoder audioEncoder = new AudioEncoder();
-//            try {
-//                audioEncoder.startRecording(outputAudio);
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
 
             MediaCodec encoder;
 
@@ -478,10 +450,6 @@ public class MainActivity extends AppCompatActivity {
                 if(currentFps == 0) {
                     encoder = MediaCodec.createEncoderByType("video/avc");
 
-
-                    //for (String cameraID : mCameraManager.getCameraIdList()) {
-                    //Log.i(LOG_TAG, "cameraID: " + cameraID);
-                    //int id = Integer.parseInt(cameraID);
                     // создаем обработчик для камеры
                     CameraCharacteristics characteristics = mCameraManager.getCameraCharacteristics("0");
 
@@ -554,20 +522,6 @@ public class MainActivity extends AppCompatActivity {
                 //mCameraDevice
             }
         }
-
-//        handler = new Handler(Looper.getMainLooper()) {
-//            public void handleMessage(@NonNull android.os.Message msg) {
-//                if(msg.what == 1) {
-//                    if(stateButtonPlay == STATE_PLAY) {
-//                        btnPlay.callOnClick();
-//                    }
-//                }else if(msg.what == 2){
-//                    if(stateButtonPlay == STATE_PAUSE) {
-//                        btnPlay.callOnClick();
-//                    }
-//                }
-//            }
-//        };
     }
 
     public void select_camera(View view) {
@@ -657,7 +611,7 @@ public class MainActivity extends AppCompatActivity {
                 mPreviewBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
                 mPreviewBuilder.addTarget(previewSurface);
                 mPreviewBuilder.addTarget(mEncoderSurface);
-                //mPreviewBuilder.addTarget(s);
+
                 Range<Integer> fpsRange = new Range<>(currentFps, currentFps);
                 mPreviewBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, fpsRange);
                 //mPreviewBuilder.set(CaptureRequest.CNTROL_AE_, fpsRange);
@@ -725,26 +679,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-//    private void closeConnection() {
-//        if (socket != null && !socket.isClosed()) {
-//            try {
-//                socket.close();
-//            } catch (IOException e) {
-//                Log.e(LOG_TAG, "ошибка закрытия сокета" + e.getMessage());
-//            } finally {
-//                socket = null;
-//            }
-//        }
-//        if (socketSound != null && !socketSound.isClosed()) {
-//            try {
-//                socketSound.close();
-//            } catch (IOException e) {
-//                Log.e(LOG_TAG, "ошибка закрытия socketSound" + e.getMessage());
-//            } finally {
-//                socketSound = null;
-//            }
-//        }
-//    }
 
     private class EncoderCallback extends MediaCodec.Callback {
         @Override
@@ -761,7 +695,7 @@ public class MainActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(LOG_TAG, " error codec" + e.getMessage());
             }
-            Log.i("fff", "outPutByteBuffer = " + outPutByteBuffer);
+            //Log.i("fff", "outPutByteBuffer = " + outPutByteBuffer);
             if (outPutByteBuffer != null) {
                 if (socket != null) {
                     /// /////////////////////////////////////////////////////////////////////
@@ -907,104 +841,104 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public static class TcpClient {
-
-        public  final String TAG = TcpClient.class.getSimpleName();
-        public static final String SERVER_IP = "127.0.0.1"; //server IP address
-        public static final int SERVER_PORT = 5565;
-        // message to send to the server
-        private String mServerMessage;
-        // sends message received notifications
-        private OnMessageReceived mMessageListener = null;
-        // while this is true, the server will continue running
-        private boolean mRun = false;
-        // used to send messages
-        private PrintWriter mBufferOut;
-        // used to read messages from the server
-        private BufferedReader mBufferIn;
-
-        /**
-         * Constructor of the class. OnMessagedReceived listens for the messages received from server
-         */
-        public TcpClient(OnMessageReceived listener) {
-            mMessageListener = listener;
-        }
-
-        /**
-         * Sends the message entered by client to the server
-         *
-         * @param message text entered by client
-         */
-        public void sendMessage(final String message) {
-            Runnable runnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (mBufferOut != null) {
-                        Log.d(TAG, "Sending: " + message);
-                        mBufferOut.println(message);
-                        mBufferOut.flush();
-                    }
-                }
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-        }
-
-        public void run() {
-
-            mRun = true;
-
-            try {
-                //here you must put your computer's IP address.
-                InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
-
-                Log.d("TCP Client", "C: Connecting...");
-
-                //create a socket to make the connection with the server
-                Socket socket = new Socket(serverAddr, SERVER_PORT);
-
-                try {
-
-                    //sends the message to the server
-                    mBufferOut = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
-
-                    //receives the message which the server sends back
-                    mBufferIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-
-
-                    //in this while the client listens for the messages sent by the server
-                    while (mRun) {
-
-                        mServerMessage = mBufferIn.readLine();
-
-                        if (mServerMessage != null && mMessageListener != null) {
-                            //call the method messageReceived from MyActivity class
-                            mMessageListener.messageReceived(mServerMessage);
-                        }
-
-                    }
-
-                    Log.d("RESPONSE FROM SERVER", "S: Received Message: '" + mServerMessage + "'");
-
-                } catch (Exception e) {
-                    Log.e("TCP", "S: Error", e);
-                } finally {
-                    //the socket must be closed. It is not possible to reconnect to this socket
-                    // after it is closed, which means a new socket instance has to be created.
-                    socket.close();
-                }
-
-            } catch (Exception e) {
-                Log.e("TCP", "C: Error", e);
-            }
-
-        }
-
-        public interface OnMessageReceived {
-            public void messageReceived(String message);
-        }
-
-    }
+//    public static class TcpClient {
+//
+//        public  final String TAG = TcpClient.class.getSimpleName();
+//        public static final String SERVER_IP = "127.0.0.1"; //server IP address
+//        public static final int SERVER_PORT = 5565;
+//        // message to send to the server
+//        private String mServerMessage;
+//        // sends message received notifications
+//        private OnMessageReceived mMessageListener = null;
+//        // while this is true, the server will continue running
+//        private boolean mRun = false;
+//        // used to send messages
+//        private PrintWriter mBufferOut;
+//        // used to read messages from the server
+//        private BufferedReader mBufferIn;
+//
+//        /**
+//         * Constructor of the class. OnMessagedReceived listens for the messages received from server
+//         */
+//        public TcpClient(OnMessageReceived listener) {
+//            mMessageListener = listener;
+//        }
+//
+//        /**
+//         * Sends the message entered by client to the server
+//         *
+//         * @param message text entered by client
+//         */
+//        public void sendMessage(final String message) {
+//            Runnable runnable = new Runnable() {
+//                @Override
+//                public void run() {
+//                    if (mBufferOut != null) {
+//                        Log.d(TAG, "Sending: " + message);
+//                        mBufferOut.println(message);
+//                        mBufferOut.flush();
+//                    }
+//                }
+//            };
+//            Thread thread = new Thread(runnable);
+//            thread.start();
+//        }
+//
+//        public void run() {
+//
+//            mRun = true;
+//
+//            try {
+//                //here you must put your computer's IP address.
+//                InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
+//
+//                Log.d("TCP Client", "C: Connecting...");
+//
+//                //create a socket to make the connection with the server
+//                Socket socket = new Socket(serverAddr, SERVER_PORT);
+//
+//                try {
+//
+//                    //sends the message to the server
+//                    mBufferOut = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
+//
+//                    //receives the message which the server sends back
+//                    mBufferIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+//
+//
+//                    //in this while the client listens for the messages sent by the server
+//                    while (mRun) {
+//
+//                        mServerMessage = mBufferIn.readLine();
+//
+//                        if (mServerMessage != null && mMessageListener != null) {
+//                            //call the method messageReceived from MyActivity class
+//                            mMessageListener.messageReceived(mServerMessage);
+//                        }
+//
+//                    }
+//
+//                    Log.d("RESPONSE FROM SERVER", "S: Received Message: '" + mServerMessage + "'");
+//
+//                } catch (Exception e) {
+//                    Log.e("TCP", "S: Error", e);
+//                } finally {
+//                    //the socket must be closed. It is not possible to reconnect to this socket
+//                    // after it is closed, which means a new socket instance has to be created.
+//                    socket.close();
+//                }
+//
+//            } catch (Exception e) {
+//                Log.e("TCP", "C: Error", e);
+//            }
+//
+//        }
+//
+//        public interface OnMessageReceived {
+//            public void messageReceived(String message);
+//        }
+//
+//    }
 
     private class SoundThread extends Thread{
         AudioRecord audioRecord;
@@ -1044,8 +978,6 @@ public class MainActivity extends AppCompatActivity {
 
             byte[] buffer = new byte[myBufferSize];
 
-
-
             try {//
                 audioEncoder = MediaCodec.createEncoderByType("audio/mp4a-latm");
             } catch (IOException e) {
@@ -1060,12 +992,8 @@ public class MainActivity extends AppCompatActivity {
             audioEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
             audioEncoder.start();
 
-
-
             ByteBuffer[] inputBuffers = audioEncoder.getInputBuffers();
             ByteBuffer[] outputBuffers = audioEncoder.getOutputBuffers();
-
-
 
             while (rec) {
                 //Thread.sleep(90); //Recording 90ms duration packets
@@ -1165,88 +1093,4 @@ public class MainActivity extends AppCompatActivity {
             Log.i(LOG_TAG, "exit sound");
         }
     }
-
-    private class ConnectionCommonServer extends Thread {
-        ServerSocket serverSocket;
-        private Socket clientSocket; //сокет для общения
-        private boolean process = true;
-        BufferedOutputStream out = null;
-        int port;
-        ConnectionCommonServer(int _port){
-            port = _port;
-        }
-        public void stopProcess(){
-            process = false;
-            try {
-                if(out != null) {
-                    out.close();
-                    out = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "error out.close()   " + e.getMessage() + port);
-            }
-            try {
-                if(clientSocket != null) {
-                    clientSocket.close();
-                    clientSocket = null;
-                }
-            } catch (Exception e) {
-                Log.e(LOG_TAG, "error clientSocket.close()   " + e.getMessage() + port);
-            }
-            if(serverSocket != null) {
-                try {
-                    serverSocket.close();
-                } catch (Exception e) {
-                    Log.e(LOG_TAG, "error audio serverSocket.close()  " + e.getMessage() + port);
-                }
-            }
-        }
-        @Override
-        public void run() {
-            try {
-                serverSocket = new ServerSocket();
-                serverSocket.bind(new InetSocketAddress("127.0.0.1", port), 10);
-            }catch(IOException e) {
-                Log.e(LOG_TAG, "connection server error bind " + e.getMessage() + port);
-                return;
-            }
-            while(process) {
-                try {
-                    clientSocket = serverSocket.accept();
-                    clientSocket.setSoTimeout(2000);
-                    out = new BufferedOutputStream(clientSocket.getOutputStream());
-                }catch(IOException e) {
-                    Log.e(LOG_TAG, "audio server accept error " + e.getMessage() + port);
-                }
-                try {
-                    if(out != null) {
-                        String data = String.valueOf(currentCamera) + "=" +
-                                String.valueOf(currentResolution.getWidth()) + "=" +
-                                String.valueOf(currentResolution.getHeight()) + "=" +
-                                String.valueOf(currentFps);
-                        out.write(data.getBytes());
-                        out.flush();
-                    }
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, "error send conn data " + e.getMessage() + port);
-                    try {
-                        clientSocket.close();
-                        break;
-                    } catch (IOException ex) {
-                        Log.e(LOG_TAG, "error close conn client " + e.getMessage() + port);
-                        break;
-                    }
-                }
-                try {
-                    if (out != null) {
-                        out.close();
-                    }
-                } catch (IOException e) {
-                    Log.e(LOG_TAG, "error clientSocket.close() " + e.getMessage() + port);
-                }
-            }
-        }
-    }
-
-
 }
