@@ -10,6 +10,7 @@ import static android.media.AudioRecord.READ_BLOCKING;
 import androidx.activity.EdgeToEdge;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
@@ -90,9 +91,14 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.Objects;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     public static final String LOG_TAG = "myLogs";
@@ -121,8 +127,10 @@ public class MainActivity extends AppCompatActivity {
     Surface previewSurface;
     ByteBuffer outPutByteBuffer;
 
-    Socket socket = null;
-    Socket socketAudio = null;
+    //Socket socket = null;
+    VideoAudioServer videoServer = null;
+    VideoAudioServer audioServer = null;
+    //Socket socketAudio = null;
     //Socket socketSound = null;
     OutputStream output;
     OutputStream outputAudio;
@@ -165,6 +173,8 @@ public class MainActivity extends AppCompatActivity {
     long ptsAudio = 0;
     long ptsVideo = 0;
 
+    BlockingQueue<byte[]> videoQueue = null;
+    BlockingQueue<byte[]> audioQueue = null;
     private void startBackgroundThread() {
         mBackgroundThread = new HandlerThread("CameraBackground");
         mBackgroundThread.start();
@@ -205,11 +215,15 @@ public class MainActivity extends AppCompatActivity {
 
         setContentView(R.layout.activity_main);
 
-        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id. main), (v, insets) -> {
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
+
+
+        audioQueue = new LinkedBlockingQueue<byte[]>();
+        videoQueue = new LinkedBlockingQueue<byte[]>();
 
 
         int orientation = getResources().getConfiguration().orientation;
@@ -346,54 +360,65 @@ public class MainActivity extends AppCompatActivity {
 //                            audioServer.stopProcess() ;
 //                            audioServer = null;
 //                        }
-                        if(socket != null){
-                            try {
-                                socket.close();
-                                socket = null;
-                            } catch (IOException e) {
-                                Log.e(LOG_TAG, "error close socket = " + e.getMessage());
-                            }
+//                        if(socket != null){
+//                            try {
+//                                socket.close();
+//                                socket = null;
+//                            } catch (IOException e) {
+//                                Log.e(LOG_TAG, "error close socket = " + e.getMessage());
+//                            }
+//                        }
+                        if(videoServer != null){
+                            videoServer.stopProcess();
+                            videoServer = null;
                         }
-                        if(socketAudio != null){
-                            try {
-                                socketAudio.close();
-                                socketAudio = null;
-                            } catch (IOException e) {
-                                Log.e(LOG_TAG, "error close socketAudio = " + e.getMessage());
-                            }
+//                        if(socketAudio != null){
+//                            try {
+//                                socketAudio.close();
+//                                socketAudio = null;
+//                            } catch (IOException e) {
+//                                Log.e(LOG_TAG, "error close socketAudio = " + e.getMessage());
+//                            }
+//                        }
+                        if(audioServer != null){
+                            audioServer.stopProcess();
+                            audioServer = null;
                         }
                     } else {
-                        try {
-                            socket = new Socket(InetAddress.getByName("127.0.0.1"), portVideo);
-                            //socketAudio = new Socket(InetAddress.getByName("127.0.0.1"), 5556);
-                            try {
-                                output = socket.getOutputStream();
-                                Log.i(LOG_TAG, "  есть output socket" + output);
-                            } catch (IOException ee) {
-                                Log.i(LOG_TAG, "  ошибка создания output socket " + ee.getMessage());
-                                return;
-                            }
-                        } catch (IOException e) {
-                            Log.e(LOG_TAG, "ошибка создания socket " + e.getMessage());
-                            return;
-                        }
-                        try {
-                            socketAudio = new Socket(InetAddress.getByName("127.0.0.1"), portAudio);
-                            if(socketAudio.isConnected()) {
-                                try {
-                                    outputAudio = socketAudio.getOutputStream();
-                                    Log.i(LOG_TAG, "  есть output socketAudio" + output);
-                                } catch (IOException ee) {
-                                    Log.i(LOG_TAG, "  ошибка создания output socketAudio " + ee.getMessage());
-                                    return;
-                                }
-                            }
-                        } catch (IOException e) {
-                            Log.e(LOG_TAG, "ошибка создания socketAudio " + e.getMessage());
-                            return;
-                        }
+                        videoServer = new VideoAudioServer(portVideo, videoQueue);
+                        videoServer.start();
+//                        try {
+//                            socket = new Socket(InetAddress.getByName("127.0.0.1"), portVideo);
+//                            //socketAudio = new Socket(InetAddress.getByName("127.0.0.1"), 5556);
+//                            try {
+//                                output = socket.getOutputStream();
+//                                Log.i(LOG_TAG, "  есть output socket" + output);
+//                            } catch (IOException ee) {
+//                                Log.i(LOG_TAG, "  ошибка создания output socket " + ee.getMessage());
+//                                return;
+//                            }
+//                        } catch (IOException e) {
+//                            Log.e(LOG_TAG, "ошибка создания socket " + e.getMessage());
+//                            return;
+//                        }
+//                        try {
+//                            socketAudio = new Socket(InetAddress.getByName("127.0.0.1"), portAudio);
+//                            if(socketAudio.isConnected()) {
+//                                try {
+//                                    outputAudio = socketAudio.getOutputStream();
+//                                    Log.i(LOG_TAG, "  есть output socketAudio" + output);
+//                                } catch (IOException ee) {
+//                                    Log.i(LOG_TAG, "  ошибка создания output socketAudio " + ee.getMessage());
+//                                    return;
+//                                }
+//                            }
+//                        } catch (IOException e) {
+//                            Log.e(LOG_TAG, "ошибка создания socketAudio " + e.getMessage());
+//                            return;
+//                        }
 
-
+                        audioServer = new VideoAudioServer(portAudio, audioQueue);
+                        audioServer.start();
 
                         stateButtonPlay = STATE_PLAY;
                         btnPlay.setBackgroundResource(R.drawable.stream_on);
@@ -431,9 +456,9 @@ public class MainActivity extends AppCompatActivity {
                         myCameras[CAMERA1].closeCamera();
                         setUpMediaCodec();
                         myCameras[CAMERA1].openCamera();
-                        if (socket != null) {
-                            icConnection = true;
-                        }
+//                        if (socket != null) {
+//                            icConnection = true;
+//                        }
                     }
                 }
             });
@@ -697,7 +722,7 @@ public class MainActivity extends AppCompatActivity {
             }
             //Log.i("fff", "outPutByteBuffer = " + outPutByteBuffer);
             if (outPutByteBuffer != null) {
-                if (socket != null) {
+                if (videoServer != null) {
                     /// /////////////////////////////////////////////////////////////////////
                     /// Заголовок: "packet0", где ноль - флаг ключевого кадра(если 1),    ///
                     /// 8 байтов - PTS, 4 байта - длина пакета, итого 7 + 8 + 4 = 19 байт ///
@@ -745,13 +770,19 @@ public class MainActivity extends AppCompatActivity {
                     outPutByteBuffer.get(outDate, 19, info.size);
 
                     Log.i(LOG_TAG2, String.valueOf(info.size));
-                    try {
-                        output.write(outDate);
-                        output.flush();
-                    } catch (IOException e) {
-                        Log.e(LOG_TAG, " error write wideo " + e.getMessage());
-                        //handler.sendEmptyMessage(1);
-                    }
+                    //try {
+                        //output.write(outDate);
+                        //output.flush();
+                        try {
+                            videoQueue.put(outDate);
+                        } catch (InterruptedException e) {
+                            Log.i(LOG_TAG, "error put queue video" + e);
+                        }
+
+//                    } catch (IOException e) {
+//                        Log.e(LOG_TAG, " error write wideo " + e.getMessage());
+//                        //handler.sendEmptyMessage(1);
+//                    }
                 }
             }
             mCodec.releaseOutputBuffer(index, false);
@@ -839,106 +870,6 @@ public class MainActivity extends AppCompatActivity {
         mCodec.start(); // запускаем кодер
         Log.i(LOG_TAG, "запустили кодек " + colorFormat);
     }
-
-
-//    public static class TcpClient {
-//
-//        public  final String TAG = TcpClient.class.getSimpleName();
-//        public static final String SERVER_IP = "127.0.0.1"; //server IP address
-//        public static final int SERVER_PORT = 5565;
-//        // message to send to the server
-//        private String mServerMessage;
-//        // sends message received notifications
-//        private OnMessageReceived mMessageListener = null;
-//        // while this is true, the server will continue running
-//        private boolean mRun = false;
-//        // used to send messages
-//        private PrintWriter mBufferOut;
-//        // used to read messages from the server
-//        private BufferedReader mBufferIn;
-//
-//        /**
-//         * Constructor of the class. OnMessagedReceived listens for the messages received from server
-//         */
-//        public TcpClient(OnMessageReceived listener) {
-//            mMessageListener = listener;
-//        }
-//
-//        /**
-//         * Sends the message entered by client to the server
-//         *
-//         * @param message text entered by client
-//         */
-//        public void sendMessage(final String message) {
-//            Runnable runnable = new Runnable() {
-//                @Override
-//                public void run() {
-//                    if (mBufferOut != null) {
-//                        Log.d(TAG, "Sending: " + message);
-//                        mBufferOut.println(message);
-//                        mBufferOut.flush();
-//                    }
-//                }
-//            };
-//            Thread thread = new Thread(runnable);
-//            thread.start();
-//        }
-//
-//        public void run() {
-//
-//            mRun = true;
-//
-//            try {
-//                //here you must put your computer's IP address.
-//                InetAddress serverAddr = InetAddress.getByName(SERVER_IP);
-//
-//                Log.d("TCP Client", "C: Connecting...");
-//
-//                //create a socket to make the connection with the server
-//                Socket socket = new Socket(serverAddr, SERVER_PORT);
-//
-//                try {
-//
-//                    //sends the message to the server
-//                    mBufferOut = new PrintWriter(new BufferedWriter(new OutputStreamWriter(socket.getOutputStream())), true);
-//
-//                    //receives the message which the server sends back
-//                    mBufferIn = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-//
-//
-//                    //in this while the client listens for the messages sent by the server
-//                    while (mRun) {
-//
-//                        mServerMessage = mBufferIn.readLine();
-//
-//                        if (mServerMessage != null && mMessageListener != null) {
-//                            //call the method messageReceived from MyActivity class
-//                            mMessageListener.messageReceived(mServerMessage);
-//                        }
-//
-//                    }
-//
-//                    Log.d("RESPONSE FROM SERVER", "S: Received Message: '" + mServerMessage + "'");
-//
-//                } catch (Exception e) {
-//                    Log.e("TCP", "S: Error", e);
-//                } finally {
-//                    //the socket must be closed. It is not possible to reconnect to this socket
-//                    // after it is closed, which means a new socket instance has to be created.
-//                    socket.close();
-//                }
-//
-//            } catch (Exception e) {
-//                Log.e("TCP", "C: Error", e);
-//            }
-//
-//        }
-//
-//        public interface OnMessageReceived {
-//            public void messageReceived(String message);
-//        }
-//
-//    }
 
     private class SoundThread extends Thread{
         AudioRecord audioRecord;
@@ -1057,18 +988,24 @@ public class MainActivity extends AppCompatActivity {
 
                             Log.i("fff", "timeAudio = " + " " + info.presentationTimeUs + " sumA = " + sumA + " countA = " + ++countA);
 
-                            if(socketAudio != null) {
-                                if (socketAudio.isConnected()) {
-                                    try {
-                                        Log.i("fff", String.valueOf(aacData.length));
-                                        outputAudio.write(aacData);
-                                        outputAudio.flush();
-                                    } catch (IOException e) {
-                                        //throw new RuntimeException(e);
-                                        Log.i("fff", "err sound");
-                                    }
-                                }
+//                            if(socketAudio != null) {
+//                                if (socketAudio.isConnected()) {
+//                                    try {
+//                                        Log.i("fff", String.valueOf(aacData.length));
+//                                        outputAudio.write(aacData);
+//                                        outputAudio.flush();
+//                                    } catch (IOException e) {
+//                                        //throw new RuntimeException(e);
+//                                        Log.i("fff", "err sound");
+//                                    }
+//                                }
+//                            }
+                            try {
+                                audioQueue.put(aacData);
+                            } catch (InterruptedException e) {
+                                Log.e(LOG_TAG, "error pur audio queue" + e);
                             }
+
                             audioEncoder.releaseOutputBuffer(outputIndex, info.presentationTimeUs);
                             //Log.i("fff", "pres 2 " + info.presentationTimeUs);
                         } else if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {

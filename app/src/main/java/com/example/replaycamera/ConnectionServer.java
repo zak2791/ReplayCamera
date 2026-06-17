@@ -96,10 +96,6 @@ ConnectionServer(int _port, Handler h, int f, Size r){
                 byte[] b = new byte[10];
                 int ret;
                 try {
-//                        int av = in.available();
-//                        Log.i(LOG_TAG, "av = " + av);
-//                        if(av > 0)
-                    //while(in.available() < 1);
                     Log.i(LOG_TAG, "in.available() = " + in.available());
                     ret = in.read(b, 0, 10);
 
@@ -108,10 +104,9 @@ ConnectionServer(int _port, Handler h, int f, Size r){
                     Log.e(LOG_TAG, "read connection error " + e.getMessage());
                     break;
                 }
-//                    String sB = Arrays.toString(b);
+
                 Log.i(LOG_TAG, "ret = " + b.toString());
-//                    if(ret != 10)
-//                        break;
+
                 if(Arrays.equals(b, "parameters".getBytes())){
                     Log.i(LOG_TAG, "Arrays.toString(b).equals(connect)");
                     try {
