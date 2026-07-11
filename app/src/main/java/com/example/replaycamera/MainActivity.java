@@ -1,34 +1,28 @@
 package com.example.replaycamera;
 
-
 import static android.media.AudioRecord.ERROR;
 import static android.media.AudioRecord.ERROR_BAD_VALUE;
 import static android.media.AudioRecord.ERROR_DEAD_OBJECT;
 import static android.media.AudioRecord.ERROR_INVALID_OPERATION;
 import static android.media.AudioRecord.READ_BLOCKING;
+import static android.view.Surface.ROTATION_90;
 
 import androidx.activity.EdgeToEdge;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
-
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
-
 import android.content.res.Configuration;
-
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -37,8 +31,6 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
-
-
 import android.hardware.camera2.params.StreamConfigurationMap;
 import android.media.AudioFormat;
 import android.media.AudioRecord;
@@ -49,68 +41,47 @@ import android.media.MediaRecorder;
 
 import android.os.Build;
 import android.os.Bundle;
-
 import android.os.Handler;
 import android.os.HandlerThread;
-
 import android.os.Looper;
+import android.os.Message;
+import android.os.Process;
 import android.os.StrictMode;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
 import android.util.Range;
 import android.util.Size;
 import android.view.Surface;
 import android.view.SurfaceView;
-
+import android.view.TextureView;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
-
 import android.widget.ImageButton;
-
-import java.io.BufferedOutputStream;
-
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
+import android.widget.TextView;
 
 import java.io.IOException;
-
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-
-import java.io.PrintWriter;
-
-import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     public static final String LOG_TAG = "myLogs";
     public static final String LOG_TAG2 = "myLogs2";
-
-    //SharedPreferences sPref;
-    long prevTimeEncode;
-
+    static final String LOG_TAG_SERVER = "serverLogs";
     private final boolean STATE_PLAY = true;
     private final boolean STATE_PAUSE = false;
     private boolean stateButtonPlay = STATE_PAUSE;
-
     CameraService[] myCameras = null;
     private CameraManager mCameraManager = null;
     private final int CAMERA1 = 0;
@@ -126,53 +97,31 @@ public class MainActivity extends AppCompatActivity {
     Surface mEncoderSurface;
     Surface previewSurface;
     ByteBuffer outPutByteBuffer;
-
-    //Socket socket = null;
     VideoAudioServer videoServer = null;
     VideoAudioServer audioServer = null;
-    //Socket socketAudio = null;
-    //Socket socketSound = null;
-    OutputStream output;
-    OutputStream outputAudio;
-    String ip_address = "127.0.0.1";
     InetAddress address;
     int portVideo;
     int portAudio;
     int portConnection;
-    int portCommonConnection = 6666;
-    boolean enabledCameraButtons;
     int currentCamera = 0;
-    boolean icConnection = false;
-    DatagramSocket udpSocket = null;
-    InetAddress local;
-
-    //TcpClient mTcpClient;
     SoundThread soundThread = null;
-
     final String CAMERA_NUMBER = "cameraNumber";
     final String CURRENT_FPS = "currentFps";
     final String CURRENT_WIDTH = "currentWidth";
     final String CURRENT_HEIGHT = "currentHeight";
     public Handler handler;
-    SurfaceTexture st;
-    Surface s;
-
-    long prevTime = 0;
-    long currTime = 0;
-
     int currentFps;
     Size currentResolution;
-
     ConnectionCommonServer commonServer = null;
     ConnectionServer connectionServer = null;
     int sumA = 0;
     int sumV = 0;
     int countA = 0;
     int countV = 0;
-
     long ptsAudio = 0;
     long ptsVideo = 0;
-
+    TextView tv;
+    public Handler mHandler;
     BlockingQueue<byte[]> videoQueue = null;
     BlockingQueue<byte[]> audioQueue = null;
     private void startBackgroundThread() {
@@ -180,7 +129,6 @@ public class MainActivity extends AppCompatActivity {
         mBackgroundThread.start();
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
     }
-
     private void stopBackgroundThread() {
         mBackgroundThread.quitSafely();
         try {
@@ -188,20 +136,18 @@ public class MainActivity extends AppCompatActivity {
             mBackgroundThread = null;
             mBackgroundHandler = null;
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            //e.printStackTrace();
+            Log.e(LOG_TAG, "error stopBackgroundThread " + e.getMessage());
         }
     }
     boolean isLandscape = false;
-
     @SuppressLint("NewApi")
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
-
         super.onCreate(savedInstanceState);
 
-        Log.i(LOG_TAG, "  onCreate");
+        //Log.i(LOG_TAG, "  onCreate");
 
         StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
@@ -221,35 +167,30 @@ public class MainActivity extends AppCompatActivity {
             return insets;
         });
 
-
-        audioQueue = new LinkedBlockingQueue<byte[]>();
-        videoQueue = new LinkedBlockingQueue<byte[]>();
-
+        audioQueue = new LinkedBlockingQueue<>();
+        videoQueue = new LinkedBlockingQueue<>();
 
         int orientation = getResources().getConfiguration().orientation;
         if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            Log.d(LOG_TAG, "Запрашиваем разрешение");
+            //Log.d(LOG_TAG, "Запрашиваем разрешение");
             if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
                     ||
                     (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED)
             ) {
                 requestPermissions(new String[]{Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO, Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
             }
-
             isLandscape = true;
-
-            android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO);
-
-            Log.i(LOG_TAG, "  ORIENTATION_LANDSCAPE");
+            Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO);
+            //Log.i(LOG_TAG, "  ORIENTATION_LANDSCAPE");
             mImageView = findViewById(R.id.textureView);
-
+            //ImageView.setRotation(-90);
 
             SharedPreferences sPref = getSharedPreferences("camera_settings", MODE_PRIVATE);
             currentCamera = sPref.getInt(CAMERA_NUMBER, 1);
             currentFps = sPref.getInt(CURRENT_FPS, 0);
             currentResolution = new Size(sPref.getInt(CURRENT_WIDTH, 0), sPref.getInt(CURRENT_HEIGHT, 0));
 
-            Log.i(LOG_TAG, String.valueOf(currentResolution) + " create " + currentFps);
+            //Log.i(LOG_TAG, currentResolution + " create " + currentFps);
 
             if(commonServer != null){
                 commonServer.stopProcess();
@@ -260,6 +201,7 @@ public class MainActivity extends AppCompatActivity {
 
             if(connectionServer != null){
                 connectionServer.stopProcess();
+                connectionServer = null;
             }
 
             if(currentCamera == 1) {
@@ -278,32 +220,45 @@ public class MainActivity extends AppCompatActivity {
                 portConnection = 5573;
             }
 
+            mHandler = new Handler(Looper.getMainLooper()) {
+                //@SuppressLint("SetTextI18n")
+                @Override
+                public void handleMessage(@NonNull Message msg) {
+                    super.handleMessage(msg);
+                    String text = (String) msg.obj; // Извлекаем текст
+                    tv.append(text + "\n"); // Обновляем текст в TextView
+                }
+            };
+
             handler = new Handler(Looper.getMainLooper()) {
-                public void handleMessage(@NonNull android.os.Message msg) {
+                public void handleMessage(@NonNull Message msg) {
+                    //Log.i(LOG_TAG, "handle.msg = " + msg.what);
+                    tv.append("msg.what = " +  msg.what + "\n"); // Обновляем текст в TextView
                     if(msg.what == 1) {
+//                        if(mCodec != null){
+//
+
                         if(stateButtonPlay == STATE_PLAY) {
                             btnPlay.callOnClick();
+                            tv.append("turn off " + "\n"); // Обновляем текст в TextView
                         }
                     }else if(msg.what == 2){
                         if(stateButtonPlay == STATE_PAUSE) {
                             btnPlay.callOnClick();
+                            tv.append("turn on " + "\n"); // Обновляем текст в TextView
                         }
                     }
                 }
             };
 
-            connectionServer = new ConnectionServer(portConnection, handler, currentFps, currentResolution);
+            connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
             connectionServer.start();
 
             btnCamera1 = findViewById(R.id.btnCamera1);
-            //btnCamera1.setOnClickListener(onClickCameras);
-            //btnCamera1.setBackgroundResource(R.drawable.camera1_on);
 
             btnCamera2 = findViewById(R.id.btnCamera2);
-            //btnCamera2.setImageResource(R.drawable.camera2_off);
 
             btnCamera3 = findViewById(R.id.btnCamera3);
-            //btnCamera3.setImageResource(R.drawable.camera3_off);
 
             btnSettings = findViewById(R.id.btnSettings);
             btnSettings.setBackgroundResource(R.drawable.settings_enabled);
@@ -328,6 +283,16 @@ public class MainActivity extends AppCompatActivity {
                 throw new RuntimeException(e);
             }
 
+            tv = findViewById(R.id.textView);
+            tv.setMovementMethod(new ScrollingMovementMethod());
+//            tv.addTextChangedListener(new TextWatcher() {
+//                @Override
+//                public void afterTextChanged(Editable s) {
+//                    scrollView.fullScroll(View.FOCUS_DOWN);
+//                }
+//                // другие методы watcher...
+//            });
+
             btnPlay = findViewById(R.id.btnPlay);
             btnPlay.setBackgroundResource(R.drawable.stream_off);
 
@@ -335,7 +300,19 @@ public class MainActivity extends AppCompatActivity {
                 @SuppressLint("NewApi")
                 @Override
                 public void onClick(View v) {
+                    tv.append("onclick " + stateButtonPlay + "\n");
                     if (stateButtonPlay == STATE_PLAY) {
+//                        if(connectionServer != null){
+//                            tv.append("connectionServer != null\n");
+//                            connectionServer.stopProcess();
+//                            connectionServer = null;
+//                            connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
+//                            connectionServer.start();
+//
+//                        }
+//                        mCodec.stop();
+//                        mCodec.release();
+//                        myCameras[CAMERA1].closeCamera();
                         stateButtonPlay = STATE_PAUSE;
                         btnPlay.setBackgroundResource(R.drawable.stream_off);
                         btnCamera1.setBackgroundResource(R.drawable.camera1_on);
@@ -353,71 +330,26 @@ public class MainActivity extends AppCompatActivity {
                             btnCamera2.setImageResource(R.drawable.camera2_off);
                             btnCamera3.setImageResource(R.drawable.camera3_on);
                         }
-                        //closeConnection();
+
                         soundThread.stopRecord();
                         soundThread = null;
-//                        if(audioServer != null) {
-//                            audioServer.stopProcess() ;
-//                            audioServer = null;
-//                        }
-//                        if(socket != null){
-//                            try {
-//                                socket.close();
-//                                socket = null;
-//                            } catch (IOException e) {
-//                                Log.e(LOG_TAG, "error close socket = " + e.getMessage());
-//                            }
-//                        }
+
                         if(videoServer != null){
                             videoServer.stopProcess();
                             videoServer = null;
                         }
-//                        if(socketAudio != null){
-//                            try {
-//                                socketAudio.close();
-//                                socketAudio = null;
-//                            } catch (IOException e) {
-//                                Log.e(LOG_TAG, "error close socketAudio = " + e.getMessage());
-//                            }
-//                        }
+
                         if(audioServer != null){
                             audioServer.stopProcess();
                             audioServer = null;
                         }
+                        //Log.d(LOG_TAG_SERVER, "stop button");
                     } else {
-                        videoServer = new VideoAudioServer(portVideo, videoQueue);
+                        //Log.d(LOG_TAG_SERVER, "start button");
+                        videoServer = new VideoAudioServer(portVideo, videoQueue, mHandler);
                         videoServer.start();
-//                        try {
-//                            socket = new Socket(InetAddress.getByName("127.0.0.1"), portVideo);
-//                            //socketAudio = new Socket(InetAddress.getByName("127.0.0.1"), 5556);
-//                            try {
-//                                output = socket.getOutputStream();
-//                                Log.i(LOG_TAG, "  есть output socket" + output);
-//                            } catch (IOException ee) {
-//                                Log.i(LOG_TAG, "  ошибка создания output socket " + ee.getMessage());
-//                                return;
-//                            }
-//                        } catch (IOException e) {
-//                            Log.e(LOG_TAG, "ошибка создания socket " + e.getMessage());
-//                            return;
-//                        }
-//                        try {
-//                            socketAudio = new Socket(InetAddress.getByName("127.0.0.1"), portAudio);
-//                            if(socketAudio.isConnected()) {
-//                                try {
-//                                    outputAudio = socketAudio.getOutputStream();
-//                                    Log.i(LOG_TAG, "  есть output socketAudio" + output);
-//                                } catch (IOException ee) {
-//                                    Log.i(LOG_TAG, "  ошибка создания output socketAudio " + ee.getMessage());
-//                                    return;
-//                                }
-//                            }
-//                        } catch (IOException e) {
-//                            Log.e(LOG_TAG, "ошибка создания socketAudio " + e.getMessage());
-//                            return;
-//                        }
 
-                        audioServer = new VideoAudioServer(portAudio, audioQueue);
+                        audioServer = new VideoAudioServer(portAudio, audioQueue, mHandler);
                         audioServer.start();
 
                         stateButtonPlay = STATE_PLAY;
@@ -439,11 +371,6 @@ public class MainActivity extends AppCompatActivity {
                             btnCamera3.setImageResource(R.drawable.camera3_on_disabled);
                         }
 
-
-//                        if(audioServer == null) {
-//                            audioServer = new AudioServer(portAudio);
-//                            audioServer.start();
-//                        }
                         if(soundThread == null) {
                             soundThread = new SoundThread();
                             soundThread.start();
@@ -451,22 +378,17 @@ public class MainActivity extends AppCompatActivity {
                         currentCamera = sPref.getInt(CAMERA_NUMBER, 1);
                         currentFps = sPref.getInt(CURRENT_FPS, 0);
                         currentResolution = new Size(sPref.getInt(CURRENT_WIDTH, 0), sPref.getInt(CURRENT_HEIGHT, 0));
-                        Log.i(LOG_TAG, String.valueOf(currentResolution) + " click " + currentFps);
+                        //Log.i(LOG_TAG, String.valueOf(currentResolution) + " click " + currentFps);
                         mCodec.stop();
+                        mCodec.release();
                         myCameras[CAMERA1].closeCamera();
                         setUpMediaCodec();
                         myCameras[CAMERA1].openCamera();
-//                        if (socket != null) {
-//                            icConnection = true;
-//                        }
                     }
                 }
             });
 
             MediaCodec encoder;
-
-
-
             mCameraManager = (CameraManager) getSystemService(Context.CAMERA_SERVICE);
             try {
                 // Получение списка камер с устройства
@@ -480,6 +402,7 @@ public class MainActivity extends AppCompatActivity {
 
                     Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
                     ArrayList<Integer> listFps = new ArrayList<Integer>();
+                    assert fpsRanges != null;
                     for(Range<Integer> fps : fpsRanges){
                         if(fps.getLower().equals(fps.getUpper())){
                             listFps.add(fps.getLower());
@@ -491,7 +414,7 @@ public class MainActivity extends AppCompatActivity {
                     ed.putInt(CURRENT_FPS, currentFps);
                     ed.apply();
                     ed.commit();
-                    Log.i(LOG_TAG, String.valueOf(listFps));
+                    //Log.i(LOG_TAG, String.valueOf(listFps));
                     //Integer level = characteristics.get(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL);
                     StreamConfigurationMap configurationMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
                     Size[] sizesJPEG;
@@ -517,7 +440,7 @@ public class MainActivity extends AppCompatActivity {
                         for(Size s : supportedSizes){
                             if(s.getWidth() <= 1920){
                                 currentResolution = new Size(s.getWidth(), s.getHeight());
-                                Log.i(LOG_TAG, String.valueOf(currentResolution) + " init " + currentFps);
+                                Log.i(LOG_TAG, currentResolution + " init " + currentFps);
                                 ed.putInt(CURRENT_WIDTH, currentResolution.getWidth());
                                 ed.putInt(CURRENT_HEIGHT, currentResolution.getHeight());
                                 ed.apply();
@@ -526,12 +449,7 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }
                     }
-
-
-                    Log.i(LOG_TAG, "currentResolution = " + currentResolution);
-
-
-                    //}
+                    //Log.i(LOG_TAG, "currentResolution = " + currentResolution);
                 }
                 myCameras[0] = new CameraService(mCameraManager, "0");
             } catch (CameraAccessException | IOException e) {
@@ -546,7 +464,9 @@ public class MainActivity extends AppCompatActivity {
                 //myCameras[CAMERA1].
                 //mCameraDevice
             }
+            tv.append("onCreate\n");
         }
+
     }
 
     public void select_camera(View view) {
@@ -554,6 +474,10 @@ public class MainActivity extends AppCompatActivity {
             return;
         if(connectionServer != null)
             connectionServer.stopProcess();
+        if(videoServer != null)
+            videoServer.stopProcess();
+        if(audioServer != null)
+            audioServer.stopProcess();
         if(view.getId() == R.id.btnCamera1){
             btnCamera1.setImageResource(R.drawable.camera1_on);
             btnCamera2.setImageResource(R.drawable.camera2_off);
@@ -579,8 +503,13 @@ public class MainActivity extends AppCompatActivity {
             portAudio = 5572;
             portConnection = 5573;
         }
-        connectionServer = new ConnectionServer(portConnection, handler, currentFps, currentResolution);
+        connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
         connectionServer.start();
+        videoServer = new VideoAudioServer(portVideo, videoQueue, mHandler);
+        videoServer.start();
+        audioServer = new VideoAudioServer(portAudio, audioQueue, mHandler);
+        audioServer.start();
+
         SharedPreferences sPref = getSharedPreferences("camera_settings", MODE_PRIVATE);
         SharedPreferences.Editor ed = sPref.edit();
         ed.putInt(CAMERA_NUMBER, currentCamera);
@@ -592,7 +521,6 @@ public class MainActivity extends AppCompatActivity {
         Intent intent = new Intent(this, SettingsActivity.class);
         startActivity(intent);
     }
-
     public class CameraService {
         final private String mCameraID;
         private CameraDevice mCameraDevice = null;
@@ -605,31 +533,42 @@ public class MainActivity extends AppCompatActivity {
         }
 
 
-        private CameraDevice.StateCallback mCameraCallback = new CameraDevice.StateCallback() {
+        private final CameraDevice.StateCallback mCameraCallback = new CameraDevice.StateCallback() {
             @Override
-            public void onOpened(CameraDevice camera) {
+            public void onOpened(@NonNull CameraDevice camera) {
                 mCameraDevice = camera;
 
-                Log.i(LOG_TAG, "Open camera  with id:" + mCameraDevice.getId());
+                //Log.i(LOG_TAG, "Open camera  with id:" + mCameraDevice.getId());
                 startCameraPreviewSession();
             }
 
             @Override
-            public void onDisconnected(CameraDevice camera) {
+            public void onDisconnected(@NonNull CameraDevice camera) {
                 mCameraDevice.close();
-                Log.i(LOG_TAG, "disconnect camera  with id:" + mCameraDevice.getId());
+                //Log.i(LOG_TAG, "disconnect camera  with id:" + mCameraDevice.getId());
                 mCameraDevice = null;
             }
 
             @Override
             public void onError(CameraDevice camera, int error) {
-                Log.i(LOG_TAG, "error! camera id:" + camera.getId() + " error:" + error);
+                Log.e(LOG_TAG, "error! camera id:" + camera.getId() + " error:" + error);
             }
         };
 
         private void startCameraPreviewSession() {
             previewSurface = mImageView.getHolder().getSurface();
-            Log.i(LOG_TAG, "startCameraPreviewSession");
+
+
+            //SurfaceTexture texture = mImageView.getSurfaceTexture();
+
+
+            //assert texture != null;
+            //texture.setDefaultBufferSize(1920, 1080);
+
+            //previewSurface = new Surface(texture);
+
+
+            Log.i(LOG_TAG, "startCameraPreviewSession " + mEncoderSurface);
             try {
 
 
@@ -649,7 +588,8 @@ public class MainActivity extends AppCompatActivity {
                                 try {
                                     mSession.setRepeatingRequest(mPreviewBuilder.build(), null, mBackgroundHandler);
                                 } catch (CameraAccessException e) {
-                                    e.printStackTrace();
+                                    //e.printStackTrace();
+                                    Log.e(LOG_TAG, "error mSession.setRepeatingRequest " + e.getMessage());
                                 }
                             }
 
@@ -658,7 +598,8 @@ public class MainActivity extends AppCompatActivity {
                             }
                         }, mBackgroundHandler);
             } catch (CameraAccessException e) {
-                e.printStackTrace();
+                //e.printStackTrace();
+                Log.e(LOG_TAG, "error createCaptureRequest " + e.getMessage());
             }
         }
 
@@ -677,7 +618,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
             } catch (CameraAccessException e) {
-                Log.i(LOG_TAG, e.getMessage());
+                Log.e(LOG_TAG, e.getMessage());
             }
         }
 
@@ -703,16 +644,14 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
-
-
     private class EncoderCallback extends MediaCodec.Callback {
         @Override
         public void onInputBufferAvailable(MediaCodec codec, int index) {
         }
-
         @SuppressLint("NewApi")
         @Override
         public void onOutputBufferAvailable(MediaCodec codec, int index, MediaCodec.BufferInfo info) {
+            //Log.i(LOG_TAG, "onOutputBufferAvailable");
             try {
                 outPutByteBuffer = mCodec.getOutputBuffer(index);
                 //socketServerThread.writeBuffer(outPutByteBuffer);
@@ -728,7 +667,7 @@ public class MainActivity extends AppCompatActivity {
                     /// 8 байтов - PTS, 4 байта - длина пакета, итого 7 + 8 + 4 = 19 байт ///
                     /// /////////////////////////////////////////////////////////////////////
 
-                    Log.i("fff", "header");
+                    //Log.i("fff", "header");
 
                     byte[] outDate = new byte[info.size + 19];
 
@@ -743,56 +682,39 @@ public class MainActivity extends AppCompatActivity {
                             pts = Math.toIntExact(temp - ptsVideo);
                         }
                         ptsVideo = temp;
-
-//                        int s = Long.SIZE;
-//                        Integer.
                     }
                     sumV += pts;
                     //countV
-                    Log.i("fff", "timeVideo = " + " " + info.presentationTimeUs + "sumV = " + sumV + " countV = " + ++countV + "flags = " + info.flags);
+                    //Log.i("fff", "timeVideo = " + " " + info.presentationTimeUs + " sumV = " + sumV + " countV = " + ++countV + "flags = " + info.flags + " size = " + info.size);
 
                     String header = "packet" + info.flags;
 
                     ByteBuffer bHeader = StandardCharsets.UTF_8.encode(header);
-                    //ByteBuffer bDuration = ByteBuffer.allocate(Integer.SIZE / Byte.SIZE).putInt(pts);
-                    //bDuration.position(0);
                     ByteBuffer bTimestamp = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(info.presentationTimeUs);
                     bTimestamp.position(0);
-
                     ByteBuffer bSize = ByteBuffer.allocate(Integer.SIZE / Byte.SIZE).putInt(info.size);
                     bSize.position(0);
-
                     bHeader.get(outDate, 0, 7);
-                    //bDuration.get(outDate, 4, 4);
                     bTimestamp.get(outDate, 7, 8);
                     bSize.get(outDate, 15, 4);
 
                     outPutByteBuffer.get(outDate, 19, info.size);
 
-                    Log.i(LOG_TAG2, String.valueOf(info.size));
-                    //try {
-                        //output.write(outDate);
-                        //output.flush();
+                    //Log.i(LOG_TAG2, String.valueOf(info.size));
                         try {
                             videoQueue.put(outDate);
                         } catch (InterruptedException e) {
-                            Log.i(LOG_TAG, "error put queue video" + e);
+                            Log.e(LOG_TAG, "error put queue video" + e);
                         }
-
-//                    } catch (IOException e) {
-//                        Log.e(LOG_TAG, " error write wideo " + e.getMessage());
-//                        //handler.sendEmptyMessage(1);
-//                    }
                 }
             }
             mCodec.releaseOutputBuffer(index, false);
         }
 
         @Override
-        public void onError(MediaCodec codec, MediaCodec.CodecException e) {
-            Log.i(LOG_TAG, "Error: " + e);
+        public void onError(@NonNull MediaCodec codec, MediaCodec.CodecException e) {
+            Log.e(LOG_TAG, "Error: " + e);
         }
-
         @Override
         public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
             Log.i(LOG_TAG, "encoder output format changed: " + format);
@@ -801,6 +723,8 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onDestroy() {
+        if(isLandscape)
+            tv.append("onDestroy\n");
         super.onDestroy();
     }
 
@@ -808,33 +732,81 @@ public class MainActivity extends AppCompatActivity {
     public void onPause() {
 
         if (isLandscape) {
-            if (myCameras[CAMERA1].isOpen()) {
-                myCameras[CAMERA1].closeCamera();
-                Log.i(LOG_TAG, "pause camera");
-                stopBackgroundThread();
-            }
+//            Log.i(LOG_TAG, "pause camera " + mEncoderSurface.isValid());
+            tv.append("onPause\n");// + previewSurface + " " + mEncoderSurface + "\n");
+            //connectionServer.writePause();
+            //myCameras[CAMERA1].closeCamera();
+
+
+
+//            mCodec.stop();
+//            if (myCameras[CAMERA1].isOpen()) {
+//                myCameras[CAMERA1].closeCamera();
+//                Log.i(LOG_TAG, "pause camera");
+//                stopBackgroundThread();
+//            }
+//            mEncoderSurface.release();
+//            mCodec.stop();
+//            mCodec.release();
+
+            //Log.i(LOG_TAG, "pause camera " + mEncoderSurface.isValid());
+//            if(connectionServer != null){
+//                tv.append("connectionServer != null\n");
+//                connectionServer.stopProcess();
+//                connectionServer = null;
+//            }
+//            else{
+//                tv.append("connectionServer == null\n");
+//            }
         }
         super.onPause();
     }
 
     @Override
     public void onResume() {
-        Log.e(LOG_TAG, "onResume");
-        if (isLandscape) {
-            //if(mBackgroundThread.isAlive()) {
-            startBackgroundThread();
-            //}
-            Log.e(LOG_TAG, "startBackgroundThread");
-        }
         super.onResume();
-    }
+        //Log.e(LOG_TAG, "onResume\n");
+        if (isLandscape) {
+            //Log.i(LOG_TAG, "resume camera " + mEncoderSurface.isValid());
+            //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+//               setUpMediaCodec();
+            //Log.i(LOG_TAG, "resume camera " + mEncoderSurface.isValid());
+//            }
+            //mCodec.start();
+            //}
+//            if (myCameras[CAMERA1] != null) {// открываем камеру
+//                if (!myCameras[CAMERA1].isOpen()) myCameras[CAMERA1].openCamera();
+//
+//            startBackgroundThread();
+//            }
+            //if(mBackgroundThread.isAlive()) {
 
+            //}
+//            if(connectionServer == null){
+//                connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
+//                connectionServer.start();
+//                tv.append("connectionServer.start()\n");
+//            }
+//            else{
+//                connectionServer.start();
+//            }
+//            Log.e(LOG_TAG, "startBackgroundThread");
+            //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+                //setUpMediaCodec();
+//            //}
+//            myCameras[CAMERA1].openCamera();
+            tv.append("onResume\n");// + previewSurface + " " + mEncoderSurface + "\n");
+        }
+
+
+    }
     @RequiresApi(api = Build.VERSION_CODES.BAKLAVA)
     private void setUpMediaCodec() {
         try {
             mCodec = MediaCodec.createEncoderByType("video/avc"); // H264 кодек
         } catch (Exception e) {
-            Log.i(LOG_TAG, "а нету кодека");
+            Log.e(LOG_TAG, "а нету кодека");
         }
         MediaCodecInfo codecInfo = mCodec.getCodecInfo();
         MediaCodecInfo.CodecCapabilities capabilities = codecInfo.getCapabilitiesForType("video/avc");
@@ -846,6 +818,10 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
+        MediaCodecInfo.VideoCapabilities vCap = capabilities.getVideoCapabilities();
+        assert vCap != null;
+        Log.i(LOG_TAG, "1920 " + vCap.areSizeAndRateSupported(1920,1080,30));
+        Log.i(LOG_TAG, "3840 " + vCap.areSizeAndRateSupported(3840,2160,30));
         Log.i(LOG_TAG, "setup mediacodec " + currentResolution + currentFps);
         int width = currentResolution.getWidth(); // ширина видео
         int height = currentResolution.getHeight(); // высота видео
@@ -866,9 +842,10 @@ public class MainActivity extends AppCompatActivity {
 
         mEncoderSurface = mCodec.createInputSurface(); // получаем Surface кодера
 
+
         mCodec.setCallback(new EncoderCallback());
         mCodec.start(); // запускаем кодер
-        Log.i(LOG_TAG, "запустили кодек " + colorFormat);
+        //Log.i(LOG_TAG, "запустили кодек " + colorFormat);
     }
 
     private class SoundThread extends Thread{
@@ -883,29 +860,22 @@ public class MainActivity extends AppCompatActivity {
             audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, 44100, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, BUFFER_SIZE * 2);
             audioRecord.startRecording();
         }
-
         public void stopRecord(){
             this.rec = false;
         }
 
         public void pauseRecord(){
             this.audioRecord.stop();
-            Log.i(LOG_TAG, "pause sound");
+            //Log.i(LOG_TAG, "pause sound");
         }
-
         public void resumeRecord(){
             this.audioRecord.startRecording();
-            Log.i(LOG_TAG, "resume sound");
+            //Log.i(LOG_TAG, "resume sound");
         }
-
         @Override
         public void run() {
             rec = true;
-            Log.i(LOG_TAG, "create sound");
-//            BUFFER_SIZE = AudioRecord.getMinBufferSize(44100, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT);
-//            myBufferSize = BUFFER_SIZE * 2;
-//            audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC, 44100, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, BUFFER_SIZE * 2);
-//            audioRecord.startRecording();
+            //Log.i(LOG_TAG, "create sound");
 
             byte[] buffer = new byte[myBufferSize];
 
@@ -917,7 +887,6 @@ public class MainActivity extends AppCompatActivity {
             MediaFormat format = MediaFormat.createAudioFormat("audio/mp4a-latm", 44100, 1);
             format.setInteger(MediaFormat.KEY_BIT_RATE, 128000);
             format.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
-            //format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 0);
             format.setInteger(MediaFormat.KEY_CHANNEL_COUNT, 1);
             format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, myBufferSize);
             audioEncoder.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -927,7 +896,6 @@ public class MainActivity extends AppCompatActivity {
             ByteBuffer[] outputBuffers = audioEncoder.getOutputBuffers();
 
             while (rec) {
-                //Thread.sleep(90); //Recording 90ms duration packets
                 int out = audioRecord.read(buffer, 0, myBufferSize, READ_BLOCKING);
                 if(out > 0) {
                     /// ///////////////////////////////////////////////////////////////////////////
@@ -939,7 +907,7 @@ public class MainActivity extends AppCompatActivity {
                         inBuf.clear();
                         inBuf.put(buffer, 0, out);
                         long presentationTimeUs = System.nanoTime() / 1000;
-                        Log.i("fff", "timeAudio presentationTimeUs = " + " " + presentationTimeUs);
+                        //Log.i("fff", "timeAudio presentationTimeUs = " + " " + presentationTimeUs);
                         audioEncoder.queueInputBuffer(inputIndex, 0, out, presentationTimeUs, 0);
                     }
                     // Drain encoder output
@@ -972,8 +940,8 @@ public class MainActivity extends AppCompatActivity {
 //                            ByteBuffer bDuration = ByteBuffer.allocate(Integer.SIZE / Byte.SIZE).putInt(pts);
 //                            bDuration.position(0);
                             ByteBuffer bTimestamp = ByteBuffer.allocate(Long.SIZE / Byte.SIZE).putLong(info.presentationTimeUs);
-                            Log.i("fff", "bTimestamp = " + " " + bTimestamp.array()[0] + " " + bTimestamp.array()[1] + " " + bTimestamp.array()[2] + " " + bTimestamp.array()[3]
-                                    + " " + bTimestamp.array()[4] + " " + bTimestamp.array()[5] + " " + bTimestamp.array()[6] + " " + bTimestamp.array()[7]);
+                            //Log.i("fff", "bTimestamp = " + " " + bTimestamp.array()[0] + " " + bTimestamp.array()[1] + " " + bTimestamp.array()[2] + " " + bTimestamp.array()[3]
+                            //        + " " + bTimestamp.array()[4] + " " + bTimestamp.array()[5] + " " + bTimestamp.array()[6] + " " + bTimestamp.array()[7]);
                             bTimestamp.position(0);
 
                             ByteBuffer bSize = ByteBuffer.allocate(Integer.SIZE / Byte.SIZE).putInt(info.size);
@@ -986,20 +954,8 @@ public class MainActivity extends AppCompatActivity {
 
                             outBuf.get(aacData, 16, info.size);
 
-                            Log.i("fff", "timeAudio = " + " " + info.presentationTimeUs + " sumA = " + sumA + " countA = " + ++countA);
+                            //Log.i("fff", "timeAudio = " + " " + info.presentationTimeUs + " sumA = " + sumA + " countA = " + ++countA);
 
-//                            if(socketAudio != null) {
-//                                if (socketAudio.isConnected()) {
-//                                    try {
-//                                        Log.i("fff", String.valueOf(aacData.length));
-//                                        outputAudio.write(aacData);
-//                                        outputAudio.flush();
-//                                    } catch (IOException e) {
-//                                        //throw new RuntimeException(e);
-//                                        Log.i("fff", "err sound");
-//                                    }
-//                                }
-//                            }
                             try {
                                 audioQueue.put(aacData);
                             } catch (InterruptedException e) {
@@ -1007,7 +963,7 @@ public class MainActivity extends AppCompatActivity {
                             }
 
                             audioEncoder.releaseOutputBuffer(outputIndex, info.presentationTimeUs);
-                            //Log.i("fff", "pres 2 " + info.presentationTimeUs);
+
                         } else if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                             // handle format change if needed
                         }
@@ -1021,13 +977,11 @@ public class MainActivity extends AppCompatActivity {
                     Log.e(LOG_TAG, " ERROR_DEAD_OBJECT ");
                 }else if(out == ERROR){
                     Log.e(LOG_TAG, " ERROR ");
-
                 }
             }
             audioRecord.stop();
             audioRecord.release();
-            //encoder.close();
-            Log.i(LOG_TAG, "exit sound");
+            //Log.i(LOG_TAG, "exit sound");
         }
     }
 }

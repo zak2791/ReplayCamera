@@ -11,8 +11,9 @@ import java.net.Socket;
 
 public class ConnectionCommonServer extends Thread {
     static final String LOG_TAG = "myLogs";
+    static final String LOG_TAG_SERVER = "serverLogs";
     ServerSocket serverSocket;
-    private Socket clientSocket; //сокет для общения
+    private Socket clientSocket; /* сокет для общения */
     private boolean process = true;
     BufferedOutputStream out = null;
     int port = 6666;
@@ -32,7 +33,7 @@ public class ConnectionCommonServer extends Thread {
                 out = null;
             }
         } catch (Exception e) {
-            Log.e(LOG_TAG, "error out.close()   " + e.getMessage() + port);
+            Log.e(LOG_TAG_SERVER, "error out.close()   " + e.getMessage() + port);
         }
         try {
             if(clientSocket != null) {
@@ -40,13 +41,13 @@ public class ConnectionCommonServer extends Thread {
                 clientSocket = null;
             }
         } catch (Exception e) {
-            Log.e(LOG_TAG, "error clientSocket.close()   " + e.getMessage() + port);
+            Log.e(LOG_TAG_SERVER, "error clientSocket.close()   " + e.getMessage() + port);
         }
         if(serverSocket != null) {
             try {
                 serverSocket.close();
             } catch (Exception e) {
-                Log.e(LOG_TAG, "error audio serverSocket.close()  " + e.getMessage() + port);
+                Log.e(LOG_TAG_SERVER, "error audio serverSocket.close()  " + e.getMessage() + port);
             }
         }
     }
@@ -56,7 +57,7 @@ public class ConnectionCommonServer extends Thread {
             serverSocket = new ServerSocket();
             serverSocket.bind(new InetSocketAddress("127.0.0.1", port), 10);
         }catch(IOException e) {
-            Log.e(LOG_TAG, "connection server error bind " + e.getMessage() + port);
+            Log.e(LOG_TAG_SERVER, "connection server error bind " + e.getMessage() + port);
             return;
         }
         while(process) {
@@ -64,25 +65,26 @@ public class ConnectionCommonServer extends Thread {
                 clientSocket = serverSocket.accept();
                 clientSocket.setSoTimeout(2000);
                 out = new BufferedOutputStream(clientSocket.getOutputStream());
+                Log.i(LOG_TAG_SERVER, "common connection  accept  " + port);
             }catch(IOException e) {
-                Log.e(LOG_TAG, "audio server accept error " + e.getMessage() + port);
+                Log.e(LOG_TAG_SERVER, "common connection server accept error " + e.getMessage() + port);
             }
             try {
                 if(out != null) {
-                    String data = String.valueOf(currentCamera) + "=" +
-                            String.valueOf(currentResolution.getWidth()) + "=" +
-                            String.valueOf(currentResolution.getHeight()) + "=" +
-                            String.valueOf(currentFps);
+                    String data = currentCamera + "=" +
+                                  currentResolution.getWidth() + "=" +
+                                  currentResolution.getHeight() + "=" +
+                                  currentFps;
                     out.write(data.getBytes());
                     out.flush();
                 }
             } catch (IOException e) {
-                Log.e(LOG_TAG, "error send conn data " + e.getMessage() + port);
+                Log.e(LOG_TAG_SERVER, "error send conn data " + e.getMessage() + port);
                 try {
                     clientSocket.close();
                     break;
                 } catch (IOException ex) {
-                    Log.e(LOG_TAG, "error close conn client " + e.getMessage() + port);
+                    Log.e(LOG_TAG_SERVER, "error close conn client " + e.getMessage() + port);
                     break;
                 }
             }
@@ -91,7 +93,7 @@ public class ConnectionCommonServer extends Thread {
                     out.close();
                 }
             } catch (IOException e) {
-                Log.e(LOG_TAG, "error clientSocket.close() " + e.getMessage() + port);
+                Log.e(LOG_TAG_SERVER, "error clientSocket.close() " + e.getMessage() + port);
             }
         }
     }
