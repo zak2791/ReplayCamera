@@ -49,7 +49,6 @@ ConnectionServer(int _port, Handler h, Handler ht, int f, Size r){
 
     service.scheduleWithFixedDelay(setFlag, 0, 1, TimeUnit.SECONDS);
 
-
 }
 
     public void writePause(){
@@ -91,6 +90,7 @@ ConnectionServer(int _port, Handler h, Handler ht, int f, Size r){
         try {
 
             serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
             serverSocket.bind(new InetSocketAddress("127.0.0.1", port), 10);
             Log.i(LOG_TAG, "connection server bind " + port);
 

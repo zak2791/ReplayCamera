@@ -28,7 +28,10 @@ public class VideoAudioServer extends Thread{
         queue = _queue;
         handler = h;
         msg = handler.obtainMessage();
-        Log.d(LOG_TAG_SERVER, "start server " + port);
+        Log.d(LOG_TAG_SERVER, "start server " + port);msg = handler.obtainMessage();
+        msg.obj = " start server " + port;
+        handler.sendMessage(msg);
+
     }
     public void stopProcess(){
         process = false;
@@ -41,16 +44,19 @@ public class VideoAudioServer extends Thread{
         } catch (Exception e) {
             Log.e(LOG_TAG_SERVER, "error out.close()   " + e.getMessage() + port);
         }
-        Log.d(LOG_TAG_SERVER, "stopProcess 2 " + port);
+        //Log.d(LOG_TAG_SERVER, "stopProcess 2 " + port);
         try {
             if(clientSocket != null) {
                 clientSocket.close();
                 clientSocket = null;
+//                msg = handler.obtainMessage();
+//                msg.obj = "clientSocket.close() " + port;
+//                handler.sendMessage(msg);
             }
         } catch (Exception e) {
             Log.e(LOG_TAG_SERVER, "error clientSocket.close()   " + e.getMessage() + port);
         }
-        Log.d(LOG_TAG_SERVER, "stopProcess 3 " + port);
+        //Log.d(LOG_TAG_SERVER, "stopProcess 3 " + port);
         if(serverSocket != null) {
             try {
                 serverSocket.close();
@@ -65,8 +71,12 @@ public class VideoAudioServer extends Thread{
     public void run() {
         try {
             serverSocket = new ServerSocket();
+            serverSocket.setReuseAddress(true);
             serverSocket.bind(new InetSocketAddress("127.0.0.1", port), 10);
             Log.i(LOG_TAG_SERVER, "server bind " + port);
+            msg = handler.obtainMessage();
+            msg.obj = " server bind " + port;
+            handler.sendMessage(msg);
         }catch(IOException e) {
             Log.e(LOG_TAG_SERVER, "server error bind " + e.getMessage() + port);
             return;
@@ -83,6 +93,7 @@ public class VideoAudioServer extends Thread{
                 out = new BufferedOutputStream(clientSocket.getOutputStream());
             }catch(IOException e) {
                 Log.e(LOG_TAG_SERVER, " accept error " + e.getMessage() + port);
+                msg = handler.obtainMessage();
                 msg.obj = " accept error " + e.getMessage() + port;
                 handler.sendMessage(msg);
             }
@@ -115,9 +126,16 @@ public class VideoAudioServer extends Thread{
             if (out != null) {
                 out.close();
             }
-            if(clientSocket != null)
+            if(clientSocket != null) {
                 clientSocket.close();
+                msg = handler.obtainMessage();
+                msg.obj = "clientSocket.close() 2 " + port;
+                handler.sendMessage(msg);
+            }
             serverSocket.close();
+            msg = handler.obtainMessage();
+            msg.obj = "serverSocket.close()  " + port;
+            handler.sendMessage(msg);
         } catch (IOException e) {
             Log.e(LOG_TAG_SERVER, "error video clientSocket.close() " + e.getMessage() + port);
         }

@@ -8,6 +8,8 @@ import static android.media.AudioRecord.READ_BLOCKING;
 import static android.view.Surface.ROTATION_90;
 
 import androidx.activity.EdgeToEdge;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
@@ -343,9 +345,17 @@ public class MainActivity extends AppCompatActivity {
                             audioServer.stopProcess();
                             audioServer = null;
                         }
+//                        if(connectionServer != null){
+//                            connectionServer.stopProcess();
+//                            connectionServer = null;
+//                        }
+
                         //Log.d(LOG_TAG_SERVER, "stop button");
                     } else {
                         //Log.d(LOG_TAG_SERVER, "start button");
+//                        connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
+//                        connectionServer.start();
+
                         videoServer = new VideoAudioServer(portVideo, videoQueue, mHandler);
                         videoServer.start();
 
@@ -474,10 +484,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         if(connectionServer != null)
             connectionServer.stopProcess();
-        if(videoServer != null)
-            videoServer.stopProcess();
-        if(audioServer != null)
-            audioServer.stopProcess();
+//        if(videoServer != null)
+//            videoServer.stopProcess();
+//        if(audioServer != null)
+//            audioServer.stopProcess();
+//        if(commonServer != null)
+//            commonServer.stopProcess();
         if(view.getId() == R.id.btnCamera1){
             btnCamera1.setImageResource(R.drawable.camera1_on);
             btnCamera2.setImageResource(R.drawable.camera2_off);
@@ -505,10 +517,13 @@ public class MainActivity extends AppCompatActivity {
         }
         connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
         connectionServer.start();
-        videoServer = new VideoAudioServer(portVideo, videoQueue, mHandler);
-        videoServer.start();
-        audioServer = new VideoAudioServer(portAudio, audioQueue, mHandler);
-        audioServer.start();
+//        videoServer = new VideoAudioServer(portVideo, videoQueue, mHandler);
+//        videoServer.start();
+//        audioServer = new VideoAudioServer(portAudio, audioQueue, mHandler);
+//        audioServer.start();
+//        commonServer = new ConnectionCommonServer(currentCamera, currentResolution, currentFps);
+//        commonServer.start();
+        commonServer.setParameters(currentCamera, currentResolution, currentFps);
 
         SharedPreferences sPref = getSharedPreferences("camera_settings", MODE_PRIVATE);
         SharedPreferences.Editor ed = sPref.edit();
@@ -592,7 +607,6 @@ public class MainActivity extends AppCompatActivity {
                                     Log.e(LOG_TAG, "error mSession.setRepeatingRequest " + e.getMessage());
                                 }
                             }
-
                             @Override
                             public void onConfigureFailed(CameraCaptureSession session) {
                             }
@@ -732,32 +746,7 @@ public class MainActivity extends AppCompatActivity {
     public void onPause() {
 
         if (isLandscape) {
-//            Log.i(LOG_TAG, "pause camera " + mEncoderSurface.isValid());
             tv.append("onPause\n");// + previewSurface + " " + mEncoderSurface + "\n");
-            //connectionServer.writePause();
-            //myCameras[CAMERA1].closeCamera();
-
-
-
-//            mCodec.stop();
-//            if (myCameras[CAMERA1].isOpen()) {
-//                myCameras[CAMERA1].closeCamera();
-//                Log.i(LOG_TAG, "pause camera");
-//                stopBackgroundThread();
-//            }
-//            mEncoderSurface.release();
-//            mCodec.stop();
-//            mCodec.release();
-
-            //Log.i(LOG_TAG, "pause camera " + mEncoderSurface.isValid());
-//            if(connectionServer != null){
-//                tv.append("connectionServer != null\n");
-//                connectionServer.stopProcess();
-//                connectionServer = null;
-//            }
-//            else{
-//                tv.append("connectionServer == null\n");
-//            }
         }
         super.onPause();
     }
@@ -767,36 +756,11 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         //Log.e(LOG_TAG, "onResume\n");
         if (isLandscape) {
-            //Log.i(LOG_TAG, "resume camera " + mEncoderSurface.isValid());
-            //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-//            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-//               setUpMediaCodec();
-            //Log.i(LOG_TAG, "resume camera " + mEncoderSurface.isValid());
-//            }
-            //mCodec.start();
-            //}
-//            if (myCameras[CAMERA1] != null) {// открываем камеру
-//                if (!myCameras[CAMERA1].isOpen()) myCameras[CAMERA1].openCamera();
-//
-//            startBackgroundThread();
-//            }
-            //if(mBackgroundThread.isAlive()) {
-
-            //}
-//            if(connectionServer == null){
-//                connectionServer = new ConnectionServer(portConnection, handler, mHandler, currentFps, currentResolution);
-//                connectionServer.start();
-//                tv.append("connectionServer.start()\n");
-//            }
-//            else{
-//                connectionServer.start();
-//            }
-//            Log.e(LOG_TAG, "startBackgroundThread");
-            //if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
-                //setUpMediaCodec();
-//            //}
-//            myCameras[CAMERA1].openCamera();
-            tv.append("onResume\n");// + previewSurface + " " + mEncoderSurface + "\n");
+            SharedPreferences sPref = getSharedPreferences("camera_settings", MODE_PRIVATE);
+            currentFps = sPref.getInt(CURRENT_FPS, 0);
+            currentResolution = new Size(sPref.getInt(CURRENT_WIDTH, 0), sPref.getInt(CURRENT_HEIGHT, 0));
+            commonServer.setParameters(currentCamera, currentResolution, currentFps);
+            tv.append("onResume "+ currentResolution + " " + currentFps + " \n");// + previewSurface + " " + mEncoderSurface + "\n");
         }
 
 

@@ -21,6 +21,10 @@ public class ConnectionCommonServer extends Thread {
     Size currentResolution;
     int currentFps;
     ConnectionCommonServer(int cam, Size res, int fps){
+        setParameters(cam, res, fps);
+    }
+
+    public  void setParameters(int cam, Size res, int fps){
         currentCamera = cam;
         currentResolution = res;
         currentFps = fps;
@@ -63,7 +67,7 @@ public class ConnectionCommonServer extends Thread {
         while(process) {
             try {
                 clientSocket = serverSocket.accept();
-                clientSocket.setSoTimeout(2000);
+                clientSocket.setSoTimeout(200);
                 out = new BufferedOutputStream(clientSocket.getOutputStream());
                 Log.i(LOG_TAG_SERVER, "common connection  accept  " + port);
             }catch(IOException e) {
@@ -77,6 +81,7 @@ public class ConnectionCommonServer extends Thread {
                                   currentFps;
                     out.write(data.getBytes());
                     out.flush();
+                    Log.i(LOG_TAG_SERVER, "common connection  out  " + port + currentCamera + currentResolution + currentFps);
                 }
             } catch (IOException e) {
                 Log.e(LOG_TAG_SERVER, "error send conn data " + e.getMessage() + port);
